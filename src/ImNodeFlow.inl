@@ -292,14 +292,22 @@ namespace ImFlow
     template<class T>
     const T& InPin<T>::val()
     {
-        if(!m_link)
+        if (m_links.empty())
             return m_emptyVal;
 
-        return reinterpret_cast<OutPin<T>*>(m_link->left())->val();
+        // In this example, we'll just return the value of the first valid link.
+        // A more sophisticated approach might involve summing or averaging the inputs.
+        for (const auto& link : m_links)
+        {
+            if (link)
+                return reinterpret_cast<OutPin<T>*>(link->left())->val();
+        }
+
+        return m_emptyVal;
     }
 
     template<class T>
-    void InPin<T>::createLink(Pin *other)
+    void InPin<T>::createLink(Pin* other)
     {
         if (other == this || other->getType() == PinType_Input)
             return;
@@ -307,18 +315,24 @@ namespace ImFlow
         if (m_parent == other->getParent() && !m_allowSelfConnection)
             return;
 
-        if (m_link && m_link->left() == other)
+        // Check for duplicates
+        for (const auto& link : m_links)
         {
-            m_link.reset();
-            return;
+            if (link && link->left() == other)
+            {
+                // Link already exists, so we remove it.
+                link->right()->deleteLink(link.get());
+                return;
+            }
         }
 
         if (!m_filter(other, this)) // Check Filter
             return;
 
-        m_link = std::make_shared<Link>(other, this, (*m_inf));
-        other->setLink(m_link);
-        (*m_inf)->addLink(m_link);
+        auto new_link = std::make_shared<Link>(other, this, *m_inf);
+        m_links.push_back(new_link);
+        other->setLink(new_link);
+        (*m_inf)->addLink(new_link);
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -353,9 +367,10 @@ namespace ImFlow
     }
 
     template<class T>
-    void OutPin<T>::deleteLink()
+    void OutPin<T>::deleteLink(Link* link)
     {
         m_links.erase(std::remove_if(m_links.begin(), m_links.end(),
-                                     [](const std::weak_ptr<Link>& l) { return l.expired(); }), m_links.end());
+            [link](const std::weak_ptr<Link>& l) { return l.expired() || l.lock().get() == link; }),
+            m_links.end());
     }
 }
