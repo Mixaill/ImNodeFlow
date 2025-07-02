@@ -948,7 +948,7 @@ namespace ImFlow
                     m_style = PinStyle::cyan();
             }
 
-        virtual ~Pin() = default;
+        virtual ~Pin() = 0;
 
         /**
          * @brief <BR>Main loop of the pin
@@ -992,19 +992,13 @@ namespace ImFlow
         /**
          * @brief <BR>Delete link reference
          */
-        virtual void deleteLink() = 0;
+        virtual void deleteLink(Link* link) = 0;
 
         /**
          * @brief <BR>Get connected status
          * @return [TRUE] if the pin is connected
          */
         virtual bool isConnected() = 0;
-
-        /**
-         * @brief <BR>Get pin's link
-         * @return Weak_ptr reference to pin's link
-         */
-        virtual std::weak_ptr<Link> getLink() { return std::weak_ptr<Link>{}; }
 
         /**
          * @brief <BR>Get pin's UID
@@ -1121,9 +1115,14 @@ namespace ImFlow
         void createLink(Pin* other) override;
 
         /**
-        * @brief <BR>Delete the link connected to the pin
-        */
-        void deleteLink() override { m_link.reset(); }
+         * @brief <BR>Delete the link connected to the pin
+         */
+        void deleteLink(Link* link) override
+        {
+            m_links.erase(std::remove_if(m_links.begin(), m_links.end(), [link](const std::shared_ptr<Link>& l) {
+                return l.get() == link;
+            }), m_links.end());
+        }
 
         /**
          * @brief Specify if connections from an output on the same node are allowed
@@ -1135,13 +1134,7 @@ namespace ImFlow
          * @brief <BR>Get connected status
          * @return [TRUE] is pin is connected to a link
          */
-        bool isConnected() override { return m_link != nullptr; }
-
-        /**
-         * @brief <BR>Get pin's link
-         * @return Weak_ptr reference to the link connected to the pin
-         */
-        std::weak_ptr<Link> getLink() override { return m_link; }
+        bool isConnected() override { return !m_links.empty(); }
 
         /**
          * @brief <BR>Get InPin's connection filter
@@ -1166,8 +1159,9 @@ namespace ImFlow
          * @return Reference to the value of the connected OutPin. Or the default value if not connected
          */
         const T& val();
+
     private:
-        std::shared_ptr<Link> m_link;
+        std::vector<std::shared_ptr<Link>> m_links;
         T m_emptyVal;
         std::function<bool(Pin*, Pin*)> m_filter;
         bool m_allowSelfConnection = false;
@@ -1195,9 +1189,13 @@ namespace ImFlow
         /**
          * @brief <BR>When parent gets deleted, remove the links
          */
-        ~OutPin() override {
-            std::vector<std::weak_ptr<Link>> links = std::move(m_links);
-            for (auto &l: links) if (!l.expired()) l.lock()->right()->deleteLink();
+        ~OutPin() override
+        {
+            for (auto& l : m_links)
+            {
+                if (!l.expired())
+                    l.lock()->right()->deleteLink(l.lock().get());
+            }
         }
 
         /**
@@ -1215,7 +1213,7 @@ namespace ImFlow
         /**
          * @brief <BR>Delete any expired weak pointers to a (now deleted) link
          */
-        void deleteLink() override;
+        void deleteLink(Link* link) override;
 
         /**
          * @brief <BR>Get connected status
