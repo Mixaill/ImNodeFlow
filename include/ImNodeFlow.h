@@ -977,7 +977,7 @@ namespace ImFlow
         /**
          * @brief <BR>Delete link reference
          */
-        virtual void deleteLink(Link* link) = 0;
+        virtual void deleteLink(Link* link) {(void)link; }
 
         /**
          * @brief <BR>Get connected status
