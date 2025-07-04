@@ -933,7 +933,7 @@ namespace ImFlow
                     m_style = PinStyle::cyan();
             }
 
-        virtual ~Pin() = 0;
+        virtual ~Pin() = default;
 
         /**
          * @brief <BR>Main loop of the pin
